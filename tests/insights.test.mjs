@@ -1,0 +1,43 @@
+import assert from 'node:assert/strict';
+import {buildInsights} from '../src/insights.ts';
+import {content,traffic} from '../src/data.ts';
+const post=(platform,engagements,impressions=100,clicks=1,date='2026-10-01')=>({platform,engagements,impressions,clicks,date});
+const summaryText=rule=>rule.summary.map(row=>row.label+': '+row.value).join(' ');
+const detailsText=rule=>rule.evidence.join(' ');
+const noticeText=rule=>rule.notices.join(' ');
+const web=(date='2026-10-01')=>({date,sessions:100,cart:20,checkout:10,purchases:5});
+const run=(social,website=[web()])=>buildInsights(social,website,'2026-10-01','2026-10-28');
+assert.match(run([post('Instagram',10),post('TikTok',5)])[0].title,/Instagram has a higher observed ER/);
+assert.match(run([post('Instagram',5),post('TikTok',10)])[0].title,/TikTok has a higher observed ER/);
+assert.match(run([post('Instagram',5),post('TikTok',5)])[0].title,/equal observed/);
+const rounded=run([post('Instagram',10001,1000000),post('TikTok',10002,1000000)])[0];
+assert.match(rounded.title,/displayed precision/);assert.match(noticeText(rounded),/Raw rates differ/);
+assert.match(rounded.limited,/Limited Evidence/);
+const mixed=run([post('Instagram',10),post('TikTok',5),post('Instagram',NaN),post('TikTok',5,100,undefined)]);
+assert.match(summaryText(mixed[0]),/Instagram: ER .*1 valid content records · 1 excluded/);
+assert.match(mixed[0].limited,/Limited Evidence/);
+const invalidClicks=run([post('Instagram',5,100,NaN),post('TikTok',5,100,3)]);
+assert.match(summaryText(invalidClicks[2]),/3 link clicks · 1 valid content records · 1 excluded/);
+assert.doesNotMatch(summaryText(invalidClicks[2]),/NaN|Infinity/);
+assert.match(run([post('Instagram',NaN),post('TikTok',5)])[0].title,/Insufficient/);
+for(const rule of run([],[])){assert.match(rule.limited,/Limited Evidence/);assert.ok(rule.plan.baseline.includes('N/A'));}
+assert.match(summaryText(run([],[])[1]),/completion: N\/A/);
+assert.match(summaryText(run([post('Instagram',5)],[{...web(),cart:undefined}])[1]),/0 valid daily records/);
+const mismatch=run([post('Instagram',5)], [web('2026-10-02')]);
+assert.match(noticeText(mismatch[2]),/Coverage differs/);assert.match(detailsText(mismatch[2]),/2026-10-01/);assert.match(detailsText(mismatch[2]),/2026-10-02/);
+const full=run(content,traffic);assert.match(summaryText(full[1]),/27.31%/);assert.match(summaryText(full[2]),/6625|6,625/);
+assert.match(noticeText(full[2]),/No shared attribution key/);
+for(const rule of full){for(const key of ['hypothesis','metric','baseline','design','success']) assert.ok(rule.plan[key]);}
+assert.match(noticeText(buildInsights(content,traffic,'2026-10-28','2026-10-01')[0]),/start date/);
+console.log('PASS: Insights reversal, exact/rounded ties, tiny samples, exclusions, unavailable baselines, website insufficiency, validated clicks, date coverage and validation plans.');
+
+assert.match(summaryText(full[0]),/Instagram: ER/);
+assert.match(summaryText(full[0]),/TikTok: ER/);
+assert.match(summaryText(full[1]),/845 purchasing sessions \/ 3,094 cart sessions/);
+for(const date of traffic.map(row=>row.date)) assert.ok(detailsText(full[2]).includes(date));
+assert.match(detailsText(full[0]),/not by averaging/);
+assert.match(detailsText(full[1]),/invalid counts/);
+assert.match(detailsText(full[2]),/both finite non-negative clicks/);
+for(const rule of full) assert.doesNotMatch(summaryText(rule),/2026-10-/);
+assert.match(noticeText(run([],[])[0]),/N\/A/);
+assert.match(noticeText(mismatch[2]),/cannot be inferred to cause/);

@@ -1,0 +1,27 @@
+import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+import {demoExperiments,editExperiment,deleteExperiment,saveExperiments,loadExperiments,EXPERIMENTS_KEY} from '../src/experiments.ts';
+const original=structuredClone(demoExperiments);
+const draft={name:'  New name  ',hypothesis:'  New hypothesis  ',metric:'Site purchase conversion'};
+const edited=editExperiment(original,original[0].id,draft);
+assert.equal(edited[0].name,'New name');assert.equal(edited[0].hypothesis,'New hypothesis');assert.equal(edited[0].metric,draft.metric);
+assert.equal(edited[0].id,original[0].id);assert.equal(edited[0].status,original[0].status);
+assert.deepEqual(original,demoExperiments);assert.deepEqual(edited[1],original[1]);
+for(const invalid of [{...draft,name:'   '},{...draft,hypothesis:' '},{...draft,name:'x'.repeat(121)},{...draft,hypothesis:'x'.repeat(501)},{...draft,metric:'Unknown'}]) assert.throws(()=>editExperiment(original,1,invalid));
+assert.throws(()=>editExperiment(original,999,draft));
+assert.equal(deleteExperiment(original,1,false),original);
+const deleted=deleteExperiment(edited,1,true);assert.equal(deleted.length,1);assert.equal(deleted[0].id,2);
+let raw=null,writes=0;const access=()=>({getItem:()=>raw,setItem:(key,value)=>{assert.equal(key,EXPERIMENTS_KEY);raw=value;writes++;}});
+saveExperiments(edited,false,access);assert.deepEqual(loadExperiments(access).records,edited);
+saveExperiments(deleted,false,access);assert.deepEqual(loadExperiments(access).records,deleted);
+saveExperiments(deleteExperiment(deleted,2,true),false,access);assert.deepEqual(loadExperiments(access).records,[]);
+assert.equal(writes,3);
+raw='{corrupt';saveExperiments(edited,false,access);assert.equal(raw,'{corrupt');
+// UI wiring regression: cancelling only closes local form/confirmation; no persistence call.
+const source=readFileSync(new URL('../src/main.tsx',import.meta.url),'utf8');
+assert.match(source,/function closeExperimentForm\(\)\{setForm\(false\);setEditingId\(null\);setFormError\(''\);\}/);
+assert.match(source,/onClick=\{closeExperimentForm\}>Cancel/);
+assert.match(source,/onClick=\{\(\)=>setDeleteId\(null\)\}>Cancel deletion/);
+assert.match(source,/onClick=\{\(\)=>setDeleteId\(ex.id\)\}>Delete/);
+assert.match(source,/deleteExperiment\(experiments,ex.id,true\)/);
+console.log('PASS: edit validation/identity/status, immutable cancellation, confirmed/cancelled deletion, refresh restore, saved empty list, corruption protection and UI action wiring.');

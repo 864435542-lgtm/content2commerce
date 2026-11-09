@@ -1,0 +1,44 @@
+node_modules/
+.pnpm-store/
+dist/
+*.tsbuildinfo
+
+# Environment files; keep the sanitized template trackable.
+.env
+.env.*
+!.env.example
+
+# Local credentials and private keys.
+.npmrc
+.netrc
+_netrc
+.aws/
+.ssh/
+credentials.json
+credentials.local.*
+secrets.local.*
+*.pem
+*.key
+*.p12
+*.pfx
+*.jks
+*.keystore
+id_rsa
+id_rsa.*
+id_ed25519
+id_ed25519.*
+
+# Logs and temporary files.
+*.log
+logs/
+*.tmp
+*.temp
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Previous screenshot captures; keep the official screenshots.
+/portfolio/screenshots/backup-before-recapture/
